@@ -1,0 +1,156 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../iron-signals/iron-signals.html">
+<link rel="import" href="../iron-ajax/iron-ajax.html">
+<link rel="import" href="../web-socket/web-socket.html">
+<!--
+# slack-socket
+
+`<slack-socket>` Polymer element for managing a web socket connection to Slack RTM API
+
+[API Docs and Demo](https://heka-house-polymer-demos.firebaseapp.com/slack-socket)
+
+[Source](http://github.com/hekahouse/slack-socket/)
+
+## Install
+
+    bower install --save HekaHouse/slack-socket
+
+## Example
+    <slack-socket></slack-socket>
+
+Designed to work in conjunction with [slack-auth](https://heka-house-polymer-demos.firebaseapp.com/slack-auth/)
+
+Uses iron-signals to detect slack-access-granted which carries an access token
+
+Also uses iron-signals to detect slack-message-posted which triggers a post to slack
+
+## Dependencies
+
+Element dependencies are managed via [Bower](http://bower.io/). You can
+install that via:
+
+    npm install -g bower
+
+Then, go ahead and download the element's dependencies:
+
+    bower install
+
+slack-socket depends on:
+
+[web-socket](https://github.com/hph/web-socket)
+
+[iron-signals](https://github.com/PolymerElements/iron-signals)
+
+[iron-ajax](https://github.com/PolymerElements/iron-ajax)
+
+## Related
+
+[slack-auth](https://heka-house-polymer-demos.firebaseapp.com/slack-auth/)
+
+@group HekaHouse
+@element slack-socket
+@demo demo/index.html
+-->
+
+<dom-module id="slack-socket">
+  <template>
+    <style include="shared-styles">
+      :host {
+        display: block;
+      }
+    </style>
+    <iron-ajax
+          url="https://slack.com/api/rtm.start"
+          id="rtmStart"
+          method="POST"
+          handle-as="json"
+          params="{{ajaxBody}}"
+          last-response="{{currentSlack}}"
+          debounce-duration="300"></iron-ajax>
+    <web-socket
+      id="rtmSocket"
+      url="{{rtmUrl}}"
+      json
+      on-open="_onOpen"
+      on-close="_onClose"
+      on-message="_onMessage"
+      on-error="_onError">
+    </web-socket>
+    <iron-signals on-iron-signal-slack-access-granted="_accessGranted"></iron-signals>
+    <iron-signals on-iron-signal-slack-message-posted="_messagePosted"></iron-signals>
+  </template>
+
+  <script>
+
+    (function() {
+      'use strict';
+
+      Polymer({
+        is: 'slack-socket',
+
+        properties: {
+          accessToken: {
+            type: String,
+            notify: true
+          },
+          ajaxBody: {
+            type: String,
+            computed: 'processBody(accessToken)'
+          },
+          currentSlack: {
+            type: Object,
+            notify: true,
+            observer: 'receiveState'
+          },
+          channels: {
+            type: Array,
+            notify: true
+          },
+          rtmUrl: {
+            type: String,
+            notify: true,
+            observer: 'initRTM'
+          },
+          message: {
+            type: String,
+            notify: true
+          }
+        },
+        _onOpen: function () {
+          //alert("rtm open");
+        },
+        _onClose: function () {
+          //alert("rtm close");
+        },
+        _onMessage: function (event) {
+          //alert(JSON.stringify(event.detail));
+        },
+        _onError: function (event) {
+          alert(JSON.stringify(event.detail));
+        },
+        initRTM: function(rtmUrl) {
+          this.$.rtmSocket.open();
+        },
+        receiveState: function(currentSlack) {
+          this.rtmUrl = currentSlack.url;
+        },
+        processBody: function(accessToken) {
+          return {
+            "token":accessToken,
+            "simple_latest": false
+          };
+        },
+        _accessGranted: function(e, detail, sender) {
+          this.accessToken = detail;
+          this.$.rtmStart.generateRequest();
+        },
+        _messagePosted: function(e, detail, sender) {
+          var incoming = JSON.parse(detail);
+          incoming.id = Date.now();
+          incoming.type = "message";
+          this.$.rtmSocket.send(incoming);
+        }
+      });
+    })();
+  </script>
+</dom-module>
